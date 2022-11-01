@@ -1,5 +1,5 @@
 import css from './App.module.css';
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { getApi } from '../services/imagesApi';
 
 import { Button } from './Button';
@@ -8,33 +8,21 @@ import { Loader } from './Loader';
 import { Modal } from './Modal';
 import { Searchbar } from './Searchbar';
 
-export class App extends Component {
-  state = {
-    images: [],
-    page: 1,
-    queryName: '',
-    isLoading: false,
-    largeImgUrl: '',
-  };
+const App = () => {
+  const [query, setQuery] = useState('');
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [largeImgUrl, setLargeImgUrl] = useState(null);
 
-  componentDidUpdate(_, prevState) {
-    if (
-      (!prevState.images || prevState.queryName !== this.state.queryName) &&
-      !this.state.isLoading
-    ) {
-      this.getImages();
-    } else if (prevState.page < this.state.page && !this.state.isLoading) {
-      this.getMoreImages();
-    }
-  }
+  useEffect(() => {
+    if (!query) return;
 
-  getImages = () => {
-    const { queryName } = this.state;
+    async function getImages() {
+      setIsLoading(true);
+      try {
+        const data = await getApi(page, query);
 
-    this.setState({ isLoading: true });
-
-    getApi(1, queryName)
-      .then(data => {
         if (!data.length) {
           alert('There is no images were found');
         }
@@ -44,83 +32,48 @@ export class App extends Component {
             return { id, largeImageURL, webformatURL };
           }
         );
-        this.setState({
-          images: filteredImagesArr,
-          page: 1,
-        });
-      })
-      .catch(error => {
+        setImages(prevImages => [...prevImages, ...filteredImagesArr]);
+      } catch (error) {
         console.log(error);
-      })
-      .finally(() => {
-        this.setState({ isLoading: false });
-      });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    getImages();
+  }, [query, page]);
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    const inputValue = e.currentTarget.elements[1].value;
+    setPage(1);
+    setQuery(inputValue);
+    setImages([]);
   };
 
-  getMoreImages = () => {
-    const { page, queryName } = this.state;
-    this.setState({ isLoading: true });
-    getApi(page, queryName)
-      .then(data => {
-        if (!data.length) {
-          alert('No more images were found');
-        }
-        const filteredImagesArr = data.map(
-          ({ id, largeImageURL, webformatURL }) => {
-            return { id, largeImageURL, webformatURL };
-          }
-        );
-        this.setState(prevState => ({
-          images: [...prevState.images, ...filteredImagesArr],
-        }));
-      })
-      .catch(error => {
-        console.log(error);
-      })
-      .finally(() => {
-        this.setState({ isLoading: false });
-      });
+  const handleLoadMore = () => {
+    setPage(prevPage => prevPage + 1);
   };
 
-  handleSubmit = evt => {
-    evt.preventDefault();
-    const inputValue = evt.currentTarget.elements[1].value;
-    this.setState({
-      queryName: inputValue,
-    });
+  const handleLargeImageUrl = evt => {
+    setLargeImgUrl(evt.target.dataset.url);
   };
 
-  handleLoadMore = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
+  const closeModal = () => {
+    setLargeImgUrl('');
   };
 
-  handleLargeImageUrl = evt => {
-    this.setState({
-      largeImgUrl: evt.target.dataset.url,
-    });
-  };
+  return (
+    <div className={css.App}>
+      <Searchbar onSubmit={handleSubmit} />
+      {images.length > 0 && (
+        <ImageGallery images={images} onClick={handleLargeImageUrl} />
+      )}
+      {images.length > 0 && <Button onClick={handleLoadMore} />}
+      {isLoading && <Loader />}
+      {largeImgUrl && <Modal url={largeImgUrl} onClick={closeModal} />}
+    </div>
+  );
+};
 
-  closeModal = () =>
-    this.setState({
-      largeImgUrl: '',
-    });
-
-  render() {
-    const { images, isLoading, largeImgUrl } = this.state;
-    const { handleSubmit, handleLoadMore, handleLargeImageUrl } = this;
-
-    return (
-      <div className={css.App}>
-        <Searchbar onSubmit={handleSubmit} />
-        {images.length > 0 && (
-          <ImageGallery images={images} onClick={handleLargeImageUrl} />
-        )}
-        {images.length > 0 && <Button onClick={handleLoadMore} />}
-        {isLoading && <Loader />}
-        {largeImgUrl && <Modal url={largeImgUrl} onClick={this.closeModal} />}
-      </div>
-    );
-  }
-}
+export default App;
